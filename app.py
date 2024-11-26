@@ -1,7 +1,7 @@
 from flask import Flask, render_template, request, send_from_directory
 from sympy.logic.boolalg import And, Or, Not
 import sympy
-import openai  # Certifique-se de instalar o openai
+from graphviz import Digraph
 import os
 
 app = Flask(__name__)
@@ -10,28 +10,9 @@ app = Flask(__name__)
 IMAGES_FOLDER = os.path.join(os.getcwd(), 'static', 'images')
 os.makedirs(IMAGES_FOLDER, exist_ok=True)
 
-# Chave da API do OpenAI
-openai.api_key = "Wrg0n8nsXULa4S_Aq_LiTjAUsxcTrXE3mGCZiObFTtblx9ZTXln7EzjQpiW4P_WEA"  # Insira sua chave de API aqui
-
-# Função para gerar a explicação usando o ChatGPT
-def gerar_explicacao_chatgpt(expressao_logica):
-    prompt = f"Explique detalhadamente a seguinte expressão lógica e como ela se relaciona com portas lógicas em circuitos: {expressao_logica}"
-    
-    # Nova chamada da API com openai.chat_completions.create
-    response = openai.chat_completions.create(
-        model="gpt-4",  # Ou gpt-3.5
-        messages=[{"role": "user", "content": prompt}],
-        max_tokens=150,
-        temperature=0.7
-    )
-    
-    explicacao = response['choices'][0]['message']['content'].strip()
-    return explicacao
-
 # Função para gerar o circuito
 def gerar_circuito(expressao_logica):
     expressao = sympy.sympify(expressao_logica)
-    from graphviz import Digraph
     dot = Digraph(comment='Circuito Lógico')
     dot.attr(rankdir='LR')  # Define a direção do gráfico
 
@@ -85,32 +66,25 @@ def gerar_circuito(expressao_logica):
     criar_nodos(expressao)
 
     # Salva a imagem no diretório de imagens
-    output_image_path = os.path.join(IMAGES_FOLDER, 'circuito_logico.png')
+    output_image_path = os.path.join(IMAGES_FOLDER, 'circuito_logico')
     dot.render(output_image_path, format='png', cleanup=True)
 
-    return output_image_path, ultima_saida
+    return ultima_saida, output_image_path
 
 @app.route("/", methods=["GET", "POST"])
 def index():
-    explicacao = None
-    image_path = None
-    ultima_saida = None
     if request.method == "POST":
         expressao_logica = request.form["expressao"]
 
         try:
-            # Gerar o circuito
-            image_path, ultima_saida = gerar_circuito(expressao_logica)
-            
-            # Gerar explicação da expressão lógica usando o ChatGPT
-            explicacao = gerar_explicacao_chatgpt(expressao_logica)
-            
-            # Passar para o template
-            return render_template("index.html", image_path=image_path, ultima_saida=ultima_saida, explicacao=explicacao)
+            # Chama a função para gerar o circuito e retorna a última saída e o caminho da imagem
+            ultima_saida, image_path = gerar_circuito(expressao_logica)
+            # Envia para o template o caminho da imagem e a última saída
+            return render_template("index.html", image_path=image_path, ultima_saida=ultima_saida)
         except Exception as e:
             return render_template("index.html", error=f"Erro ao processar a expressão: {e}")
-
-    return render_template("index.html", image_path=None, ultima_saida=None, explicacao=None)
+    
+    return render_template("index.html", image_path=None, ultima_saida=None)
 
 @app.route('/static/images/<filename>')
 def uploaded_file(filename):
